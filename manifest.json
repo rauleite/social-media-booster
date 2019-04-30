@@ -1,0 +1,13 @@
+{
+    "name": "Social Media Booster",
+    "version": "1.0",
+    "description": "Boost your Facebook, Twitter, Instagram",
+    "background": {
+        "scripts": ["popup.js"],
+        "persistent": false
+    },
+    "page_action": {
+        "default_popup": "popup.html"
+      },
+    "manifest_version": 2
+  }
