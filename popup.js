@@ -1,200 +1,190 @@
-// Open: https://www.instagram.com/brazil.js/ 
-let sleepPostScrollTime = 4 * 1000 // 4
-let followsLimit = (Math.floor(Math.random() * 20) + 140) //Limit 160
-let timeBetweenFollowing = (Math.floor(Math.random() * 20) + 20) * 1000 // 20 à 40 secs
+let _sleepPostScrollTime = 4 * 1000 // 4
+let _followsLimit = (Math.floor(Math.random() * 20) + 140) //Limit 160
+let _timeBetweenFollowing = (Math.floor(Math.random() * 15) + 15) * 1000 // 15 à 30 secs
+
+// let _sleepPostScrollTime = 4 * 1000 // 4
+// let _followsLimit = 20
+// let _timeBetweenFollowing = 10 * 1000 // 15 à 30 secs
 
 const ENV = 'Prod'
 // const ENV = 'Dev'
 
 if (ENV !== 'Prod') {
-    sleepPostScrollTime = 4 * 1000 // 4
-    followsLimit = 40 //Limit 160
-    timeBetweenFollowing = 4 * 1000 // 20 à 40 secs    
+    _sleepPostScrollTime = 3 * 1000 // 4
+    _followsLimit = 15 //Limit 160
+    _timeBetweenFollowing = 5 * 1000 // 20 à 40 secs
 }
 
-let _qtdeAmigoAdicionado = 0
-let _countFixed = 0
+let _$ = $
 let _$$ = $$
 let _windowOrModal = window
 
+let _facebookDialogSetInterval = null
+
 let locationHref = window.location.href
-
-let testTwitterVersion = _$$("div.ProfileCard-content")
-
+let testTwitterVersion = _$("div.ProfileCard-content")
 const HOST = {
     isInstagram: locationHref.includes('instagram'),
     isFacebook: locationHref.includes('facebook'),
-    isTwitter: locationHref.includes('twitter') && !!testTwitterVersion.length,
-    isTwitterNew: locationHref.includes('twitter') && !testTwitterVersion.length,
+    isTwitter: locationHref.includes('twitter') && !!testTwitterVersion,
+    isTwitterNew: locationHref.includes('twitter') && !testTwitterVersion,
 }
 
-// pode ser elemento ou array direto
-let _queryButton = null
+fixConsoleLog()
 
-// Roda antes do main
-// não retornei valor no queryButton, porque há delay (setTimeout) na funcao
-initQuery(() => {
-    // Percorre até os não seguidos
-    let goUntilUnfollowed = setInterval(() => {
-        if (_queryButton.length <= 0) {
-            goToPageBottom()
-            return
-        }
-        // Inicia programa
-        main(sleepPostScrollTime)
-        clearInterval(goUntilUnfollowed)
-    }, sleepPostScrollTime / 4);
-})
+initMediaConfigs()
 
-
-let main = (first) => {
-    let delayClick = first || timeBetweenFollowing
-    // Sleep para que seja 'computado' os elementos pós scroll
-    _queryButton.every((e, i) => {
-        _countFixed++
-        if (shouldEndProgram(_countFixed)) return false //break every loop
-        if (ENV === 'Prod') {
-            setTimeout(() => {
-                e.click()
-                e.remove()
-                console.log(`Adicionado`)
-                _qtdeAmigoAdicionado++
-                shouldScrollDownAndContinue(i, _queryButton.length)
-            }, delayClick)
-        } else {
-            setTimeout(() => {
-                e.remove()
-                console.log(`Adicionado`)
-                e
-                _qtdeAmigoAdicionado++
-                shouldScrollDownAndContinue(i, _queryButton.length)
-            }, delayClick)
-        }
-
-        // Atrasa a cada click, assim levam o mesmo tempo entre um click e outro
-        delayClick += timeBetweenFollowing
-        return true
-    });
-}
-
-/***
- * return Array<HttpElement>
+/**
+ * Funcao recursiva que clica nos botoes de seguir
+ * @param {Number} firstTimeBetween
  */
-function initQuery(callback) {
+async function main(qtdeAmigoAdicionado) {
+    let delayClick = _timeBetweenFollowing
+    // Sleep para que seja 'computado' os elementos pós scroll
+    let buttonElem = getButtonElement()
+
+    console.log("TCL: main -> buttonElem", !!buttonElem)
+
+    console.log(1)
+
+    if (shouldEndProgram(qtdeAmigoAdicionado)) return // continua ou encerra recursividade
+
+    if (!buttonElem) {
+        console.log(2)
+        // (continue) continua recursividade
+        return scrollToBottom(qtdeAmigoAdicionado)
+    }
+
+    ++qtdeAmigoAdicionado
+
+    console.log(`Adicionado ${qtdeAmigoAdicionado}`)
+
+    console.log(3)
+    console.log(4)
+    if (ENV === 'Prod') {
+        buttonElem.style.borderStyle = 'solid'
+        buttonElem.click()
+    } else {
+        buttonElem.style.borderStyle = 'solid'
+        buttonElem.remove()
+        console.log("TCL: main -> buttonElem", buttonElem)
+    }
+    console.log("TCL: main -> ", 'resolveu elemento, esperando...')
+    await sleep(delayClick)
+    main(qtdeAmigoAdicionado)
+}
+
+/**
+ * Obtem o elemento do botão correto, para clicar
+ * @param {Function} callback 
+ */
+function getButtonElement(callback) {
     if (HOST.isInstagram) {
-        instagramConfigs(() => {
-            _queryButton = _$$("div[role='dialog'] button:not(._8A5w5)")
-                .filter((e, i) => {
-                    if (
-                        e.innerText.match('Seguir') ||
-                        e.innerText.match('Follow')
-                    ) {
-                        return e
-                    }
-                })
-            console.log(callback)
-            callback()
+        // o primeiro (índice 0) sempre será o de fechar e não há seletor simples, para descartá-lo
+        return _$$("div[role='dialog'] button").find((elem) => {
+            let result = elem.innerText.match('Seguir') || elem.innerText.match('Follow')
+            return result
         })
+
     } else if (HOST.isFacebook) {
-        _queryButton = _$$("button.FriendRequestAdd")
-        callback()
+        return _$("button.FriendRequestAdd:not(.hidden_elem)")
     } else if (HOST.isTwitter) {
-        _queryButton = _$$("div.GridTimeline-items.has-items div.not-following button.follow-text")
-        callback()
+        return _$("div.GridTimeline-items.has-items div.not-following button.follow-text")
     } else if (HOST.isTwitterNew) {
-        _queryButton = _$$("div[aria-label*='Timeline:'] div[data-testid*='-follow']")
-        callback()
+        return _$("div[aria-label*='Timeline:'] div[data-testid*='-follow']")
     } else {
         window.alert('😱 SITE NÃO SUPORTADO.\nCertifique que está na página de seguidores.\nQualquer coisa, contate-me.')
     }
 }
 
-// Instagram precisa de configurações prévias
-function instagramConfigs(callback) {
-    if (HOST.isInstagram) {
-        (function preCodeInstagram() {
-            let clickDelayTime = 4000
-            // Abre Modal e scrolla até a metade para carregar o resto
-            _$$("a[href*='followers']")[0].click()
-            // Desnecessário mas melhor
-            // setTimeout(() => { $$("div[role='dialog']")[0].requestFullscreen() }, 2000)
-            setTimeout(() => {
-                let modal = _$$("div.isgrP")[0]
-                modal.style.scrollBehavior = 'smooth'
-                modal.scroll(0, 500)
-                _windowOrModal = modal
-                callback()
-            }, clickDelayTime)
-        })()
-    }
-}
+/**
+ * Encerra o programa ou então continua a recursividade
+ * @param {Number} qtdeAmigoAdicionado 
+ */
+function shouldEndProgram(qtdeAmigoAdicionado) {
+    // Continua recursividade
+    if (qtdeAmigoAdicionado <= _followsLimit) return
 
-// function initElem(queryButton) {
-//     return typeof queryButton === 'string' ? _$$(queryButton) : runComplexyQuery() //runComplexyQuery sem uso
-//     // return _$$(queryButton)
-// }
-
-
-function goToPageBottom(callback) {
-    // _windowOrModal.scrollTo(1, document.body.scrollHeight)
-
-    // hack para sites que fazem reflow com o old Twitter
-    // _windowOrModal.scroll(1, -document.body.scrollHeight) // insta modal
-    _windowOrModal.scroll(0, 0) // hack insta modal (resolve problema de reflow - redesenho de página)
-
-    // setTimeout(() => {
-    _windowOrModal.scroll(1, document.body.scrollHeight * 4) // insta modal
-    // }, sleepPostScrollTime / 4)
-
-    // if (ENV !== 'Prod') console.log('Scroll foi ativado')
-    console.log('Scroll foi ativado')
-    if (callback) {
-        setTimeout(callback, sleepPostScrollTime)
-    }
-}
-
-function shouldScrollDownAndContinue(i, length) {
-    // Continua enquanto houver elementos a percorrer
-    if (i < length - 1) return
-
-    goToPageBottom(main)
-}
-
-function shouldEndProgram(_countFixed) {
-    if (_countFixed <= followsLimit) return false
+    // Finaliza recursividade
+    clear()
 
     if (ENV === 'Prod') {
-        window.alert('Finalizando a fila, continue amanhã neste site\n🚀Adicionado ' + _qtdeAmigoAdicionado + ' amigos.')
+        window.alert('Finalizando a fila, continue amanhã neste site\n🚀Adicionado ' + qtdeAmigoAdicionado - 1 + ' amigos.')
     } else {
-        console.log('Adicionado ' + _qtdeAmigoAdicionado + ' amigos.')
+        console.log('Adicionado ' + qtdeAmigoAdicionado - 1 + ' amigos.')
     }
     return true
 }
 
-// // Era usada em casos que necessitavam de um passo anterior, para montar o array de elementos
-// function runComplexyQuery() {
+/**
+ * Faz o scroll para o final da página
+ * @param {Number} qtdeAmigoAdicionado 
+ */
+async function scrollToBottom(qtdeAmigoAdicionado) {
+    _windowOrModal.scroll(0, 0) // hack insta modal (resolve problema de reflow - redesenho de página)
+    _windowOrModal.scroll(1, document.body.scrollHeight * 4) // insta modal
 
-//     if (HOST.isInstagram) {
-//         return $$("div[role='dialog'] button:not(._8A5w5)")
-//             .filter((e, i) => {
-//                 if (
-//                     e.innerText.match('Seguir') ||
-//                     e.innerText.match('Follow')
-//                 ) {
-//                     return e
-//                 }
-//             })
-//     }
+    console.log('Scroll foi ativado, esperando...')
 
-//     // if (HOST.isTwitter) {
-//     //     return _$$(" div.GridTimeline-items span.follow-button")
-//     //         .filter((e, i) => {
-//     //             if (
-//     //                 e.innerText["match"]('Seguir') ||
-//     //                 e.innerText["match"]('Follow')
-//     //             ) {
-//     //                 return e
-//     //             }
-//     //         })
-//     // }
-// }
+    // continua recursividade
+    await sleep(_sleepPostScrollTime)
+    main(qtdeAmigoAdicionado)
+}
+
+function clear() {
+    clearInterval(_facebookDialogSetInterval)
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * FUNCOES QUE ATUAM MAIS COMO LIB
+ */
+
+/**
+ * Resolve o problema de alguns sites, como o old Twitter que não aceitam console.log
+ */
+function fixConsoleLog() {
+    var frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    console = frame.contentWindow.console
+}
+
+// Instagram precisa de configurações prévias
+async function initMediaConfigs() {
+    if (HOST.isInstagram) {
+        let clickDelayTime = 4000
+        // Abre Modal e scrolla até a metade para carregar o resto
+        _$("a[href*='followers']").click()
+        // Desnecessário mas melhor
+        await sleep(clickDelayTime) //aguarda modal abrir
+        let modal = _$("div.isgrP")
+        modal.style.scrollBehavior = 'smooth'
+        modal.scroll(0, 500) // necessário para carregar restante 
+        _windowOrModal = modal
+        main(0)
+    } else if (HOST.isFacebook) {
+        // Desabilita um aviso assim que aparece
+        _facebookDialogSetInterval = setInterval(() => {
+            let dialog = _$("div[aria-label='Dialog content']")
+            if (dialog) {
+                let dialogButton = dialog.getElementsByTagName('a')[0]
+                if (dialogButton.getAttribute('action') === 'cancel') {
+                    dialogButton.click()
+                }
+            }
+
+        }, 1000)
+        main(0)
+    } else if (HOST.isTwitter) {
+        _followsLimit = (Math.floor(Math.random() * 20) + 40) //Limit 60
+        _timeBetweenFollowing = (Math.floor(Math.random() * 30) + 110) * 1000 // 110 à 140 secs
+        main(0)
+    } else if (HOST.isTwitterNew) {
+        _followsLimit = (Math.floor(Math.random() * 20) + 40) //Limit 60
+        _timeBetweenFollowing = (Math.floor(Math.random() * 30) + 110) * 1000 // 110 à 140 secs
+        main(0)
+    }
+}
