@@ -1,13 +1,22 @@
 {
-    "name": "Social Media Booster",
-    "version": "1.0",
-    "description": "Boost your Facebook, Twitter, Instagram",
-    "background": {
-        "scripts": ["popup.js"],
-        "persistent": false
-    },
-    "page_action": {
-        "default_popup": "popup.html"
-      },
-    "manifest_version": 2
-  }
+  "manifest_version": 2,
+  "name": "Social Media Booster",
+  "version": "1.0",
+  "description": "Boost your Facebook, Twitter, Instagram",
+  "background": {
+    "scripts": ["background.js"]
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://twitter.com/*/followers*",
+        "https://*.facebook.com/search/*/likers*",
+        "https://*.instagram.com/*/*"
+      ],
+      "js": ["script.js"]
+    }
+  ],
+  "icons": { "16": "icon16.png" },
+  "browser_action": {}
+}
