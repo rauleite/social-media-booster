@@ -1,4 +1,4 @@
-chrome.runtime.onMessage.addListener(function (request, sender, callback) {
+chrome.runtime.onMessage.addListener((request, sender, callback) => {
     let _sleepPostScrollTime = 6 * 1000 // 4
     let _followsLimit = (Math.floor(Math.random() * 20) + 140) //Limit 160
     let _timeBetweenFollowing = (Math.floor(Math.random() * 15) + 10) * 1000 // 10 à 25 secs
@@ -16,11 +16,12 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
         _timeBetweenFollowing = 5 * 1000 // 20 à 40 secs
     }
 
-    // let _$ = document.body.querySelector.bind(document)
-    // let _$$ = document.body.querySelectorAll.bind(document)
-    let _windowOrModal = window
+    // let $ = document.body.querySelector.bind(document)
+    // let $$ = document.body.querySelectorAll.bind(document)
 
+    let _windowOrModal = window
     let _facebookDialogSetInterval = null
+    let _blackList = []
 
     let locationHref = window.location.href
     let testTwitterVersion = document.body.querySelector("div.ProfileCard-content")
@@ -40,30 +41,46 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
      * @param {Number} firstTimeBetween
      */
     async function main(qtdeAmigoAdicionado) {
+        /**
+         * Manipulação de fluxo desta função recursiva
+         * return -> break
+         * return main(0) -> continue
+         */
+
         let delayClick = _timeBetweenFollowing
         // Sleep para que seja 'computado' os elementos pós scroll
         let buttonElem = getButtonElement()
-        console.log("TCL: main -> buttonElem", buttonElem)
+        // console.log("TCL: main -> buttonElem", buttonElem)
+
+        console.log('Total:', qtdeAmigoAdicionado)
 
         console.log("TCL: main -> buttonElem", !!buttonElem)
 
-        console.log(1)
-
-        if (shouldEndProgram(qtdeAmigoAdicionado)) return // continua ou encerra recursividade
+        // (continue ou break) continua ou encerra recursividade
+        if (shouldEndProgram(qtdeAmigoAdicionado)) return
 
         if (!buttonElem) {
-            console.log(2)
-            // (continue) continua recursividade
+            // (continue) return sempre continua recursividade
             return scrollToBottom(qtdeAmigoAdicionado)
+        }
+
+        if (estaNaBlackList()) {
+            console.log("TCL: main -> estaNaBlackList")
+            buttonElem.remove()
+            // return main(0)
+        }
+
+        // colocar la pra baixo
+        function estaNaBlackList() {
+            return _blackList.some((e) => e === buttonElem)
         }
 
         ++qtdeAmigoAdicionado
 
         buttonElem = await beforeClick(buttonElem)
 
-        console.log(`Adicionado ${qtdeAmigoAdicionado}`)
+        console.log(`ADICIONADO ${qtdeAmigoAdicionado}`)
 
-        console.log(3)
         if (ENV === 'Prod') {
             buttonElem.click()
         } else {
@@ -82,7 +99,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
 
     /**
      * Obtem o elemento do botão correto, para clicar
-     * @param {Function} callback 
+     * @param {Function} callback
      */
     function getButtonElement(callback) {
         if (HOST.isInstagram) {
@@ -120,7 +137,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
 
     /**
      * Encerra o programa ou então continua a recursividade
-     * @param {Number} qtdeAmigoAdicionado 
+     * @param {Number} qtdeAmigoAdicionado
      */
     function shouldEndProgram(qtdeAmigoAdicionado) {
         // Continua recursividade
@@ -130,20 +147,25 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
         clear()
 
         if (ENV === 'Prod') {
-            window.alert('Finalizando a fila, continue amanhã neste site\n🚀Adicionado ' + (qtdeAmigoAdicionado - 1) + ' amigos.')
+            window.alert('Finalizando a fila, continue amanhã neste site\n🚀Adicionado ' + (qtdeAmigoAdicionado) + ' amigos.')
         } else {
-            console.log('Adicionado ' + (qtdeAmigoAdicionado - 1) + ' amigos.')
+            console.log('Adicionado ' + (qtdeAmigoAdicionado) + ' amigos.')
         }
         return true
     }
 
     /**
      * Faz o scroll para o final da página
-     * @param {Number} qtdeAmigoAdicionado 
+     * @param {Number} qtdeAmigoAdicionado
      */
     async function scrollToBottom(qtdeAmigoAdicionado) {
         _windowOrModal.scroll(0, 0) // hack insta modal (resolve problema de reflow - redesenho de página)
-        _windowOrModal.scroll(1, document.body.scrollHeight * 10) // insta modal
+        if (HOST.isInstagram) {
+            // resolve 'sobe e desce' - instagram modal
+            _windowOrModal.scroll(1, document.body.scrollHeight * 30)
+        } else {
+            _windowOrModal.scroll(1, document.body.scrollHeight)
+        }
 
         console.log('Scroll foi ativado, esperando...')
 
@@ -169,7 +191,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
         } else if (HOST.isTwitterNew) {
         } else {
         }
-        console.log("TCL: beforeClick -> resultButtonElem", resultButtonElem)
+        // console.log("TCL: beforeClick -> resultButtonElem", resultButtonElem)
         return resultButtonElem
     }
 
@@ -199,29 +221,64 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
                 dialogAdd.remove()
             }
 
-            // Recomendacao sobre adicionar apenas amigo conhecido
-            let dialogRecomendationButton = document.body.querySelector("div[role='dialog'] a.layerCancel")
-            if (dialogRecomendationButton) {
-                await sleepAfterClick()
 
-                // NodeList to Array
-                // dialogRecomendationButton = Array.prototype.slice.call(dialogRecomendationButton)
-                // dialogRecomendationButton.every((elem) => {
-                //     if (elem.innerText === 'Confirm') {
-                dialogRecomendationButton.click()
-                // return false // break
+
+
+            function dialogRecomendationButtonElement() {
+                return (
+                    document.body.querySelector("div[role='dialog'] button.layerConfirm") ||
+                    document.body.querySelector("div[role='dialog'] a.layerCancel")
+                )
             }
+
+            async function confirmRecomendation() {
+                // Recomendacao sobre adicionar apenas amigo conhecido
+                let dialogRecomendationButton = dialogRecomendationButtonElement()
+
+                if (dialogRecomendationButton) {
+
+
+                    // Se nao der certo, tentar multiplicar tempo no sleepAfterClick()
+
+
+
+                    await sleepAfterClick()
+
+                    // NodeList to Array
+                    // dialogRecomendationButton = Array.prototype.slice.call(dialogRecomendationButton)
+                    // dialogRecomendationButton.every((elem) => {
+                    //     if (elem.innerText === 'Confirm') {
+                    dialogRecomendationButton.click()
+                    // return false // break
+                }
+            }
+            confirmRecomendation()
+
+
+
             // })
 
             // }
+            // $("div.alert-messages a.Icon--close").click()
         } else if (HOST.isTwitter) {
+            let dialogBlockedByUser = document.body.querySelector("div.alert-messages a.Icon--close")
+
+            if (dialogBlockedByUser) {
+                let jaEstaNaBlackList = _blackList.some((e) => e === buttonElem)
+                if (!jaEstaNaBlackList) {
+                    _blackList.push(buttonElem)
+
+                }
+                dialogBlockedByUser.click()
+            }
         } else if (HOST.isTwitterNew) {
         } else {
         }
+
         async function sleepAfterClick() {
             if (!hadSleep) {
                 console.log("TCL: afterClick -> 'antes sleep'", 'antes sleep')
-                await sleep(_sleepPostScrollTime / 2)
+                await sleep(_sleepPostScrollTime)
                 console.log("TCL: afterClick -> 'depois sleep'", 'depois sleep')
                 hadSleep = true
             }
@@ -253,35 +310,17 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
             await sleep(clickDelayTime) //aguarda modal abrir
             let modal = document.body.querySelector("div.isgrP")
             modal.style.scrollBehavior = 'smooth'
-            modal.scroll(0, 500) // necessário para carregar restante 
+            modal.scroll(0, 500) // necessário para carregar restante
             _windowOrModal = modal
-            main(0)
+            // main(0)
         } else if (HOST.isFacebook) {
             // Desabilita um aviso assim que aparece
-            _facebookDialogSetInterval = setInterval(() => {
-                // document.body.querySelector('div').click()
-
-                // let dialog = document.body.querySelector("div[aria-label='Dialog content']")
-                // if (dialog) {
-                //     let dialogButton = dialog.getElementsByTagName('a')[0]
-                //     if (dialogButton.getAttribute('action') === 'cancel') {
-                //         dialogButton.click()
-                //     }
-                // }
-                // // Remove diálogo do botao, ao clicar
-                // let dialogAdd = document.body.querySelector("div.uiContextualLayer")
-                // if (dialogAdd) { document.body.click() }
-
-            }, 1000)
-            main(0)
+            // main(0)
         } else if (HOST.isTwitter) {
-            // _followsLimit = (Math.floor(Math.random() * 20) + 40) //Limit 60
-            // _timeBetweenFollowing = (Math.floor(Math.random() * 30) + 110) * 1000 // 110 à 140 secs
-            main(0)
+            // main(0)
         } else if (HOST.isTwitterNew) {
-            // _followsLimit = (Math.floor(Math.random() * 20) + 40) //Limit 60
-            // _timeBetweenFollowing = (Math.floor(Math.random() * 30) + 110) * 1000 // 110 à 140 secs
-            main(0)
+            // main(0)
         }
+        main(0)
     }
 })
